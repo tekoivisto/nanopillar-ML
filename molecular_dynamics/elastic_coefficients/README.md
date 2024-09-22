@@ -1,4 +1,4 @@
-Calculate the stiffness tensor coefficients c_ij. All codes are from LAMMPS example codes that come installed with LAMMPS in the directory examples/ELASTIC_T/BORN_MATRIX/. The parameters are changed to model our tantalum. The output is saved to elasticity_matrix.txt.
+Calculates the stiffness tensor coefficients c_ij. All codes are from LAMMPS example codes that come installed with LAMMPS in the directory examples/ELASTIC_T/BORN_MATRIX/. The parameters are changed to model our tantalum. The output is saved to elasticity_matrix.txt.
 
 LAMMPS readme:
 

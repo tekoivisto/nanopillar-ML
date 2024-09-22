@@ -8,4 +8,4 @@ This repository contains the codes used produce the results of the paper 'Predic
 
 - molecular_dynamics: MD simulation codes for generating the dataset
 
-The dataset related code (nanopillars, stress-strain curves, CNN weights, and Grad-CAM fields): 
+The dataset related to the code (nanopillars, stress-strain curves, CNN weights, and Grad-CAM fields): [text](https://doi.org/10.5281/zenodo.13825253)
