@@ -1,0 +1,125 @@
+units metal
+boundary m m m
+atom_style atomic
+
+read_data pillars/polycrystal_${pillar_num}.lmp
+pair_style eam/alloy
+pair_coeff * * ../ta.efs Ta
+variable VOL equal "vol"
+variable zHeight equal 200
+variable end_strain equal 0.08
+variable fname_end string "${pillar_num}"
+variable lattice_constant equal 3.300101
+variable time_step equal 0.001
+
+velocity all create ${temperature} 1 rot yes
+
+minimize 1.0e-6 1.0e-8 100 1000
+
+#+-10 is because atoms move slightly in minimize
+region bottom_two_layers block -10 110 -10 110 -10 $(2*v_lattice_constant) units box
+region top_two_layers block -10 110 -10 110 $(200-2*v_lattice_constant) 210 units box
+
+# Positions of atoms in the "walls" were saved in order to estimate the volume during deformation. This was not used in the end.
+region front_wall block -10 $(100-v_lattice_constant) -10 $(v_lattice_constant) $(2*v_lattice_constant) $(200-2*v_lattice_constant) units box
+region right_wall block $(100-v_lattice_constant) 110 -10 $(100-v_lattice_constant) $(2*v_lattice_constant) $(200-2*v_lattice_constant) units box
+region back_wall  block $(v_lattice_constant) 110 $(100-v_lattice_constant) 110 $(2*v_lattice_constant) $(200-2*v_lattice_constant) units box
+region left_wall  block -10 $(v_lattice_constant) $(v_lattice_constant) 110 $(2*v_lattice_constant) $(200-2*v_lattice_constant) units box
+region bottom_wall block -10 110 -10 110 $(2*v_lattice_constant) $(3*v_lattice_constant) 
+region top_wall block -10 110 -10 110 $(200-3*v_lattice_constant) $(200-2*v_lattice_constant)
+
+group bottom_two_layers region bottom_two_layers
+group top_two_layers region top_two_layers
+
+group front_layer  region front_wall
+group right_layer  region right_wall
+group back_layer   region back_wall
+group left_layer   region left_wall
+group bottom_layer region bottom_wall
+group top_layer    region top_wall
+
+group others subtract all bottom_two_layers top_two_layers
+group non_bottom subtract all bottom_two_layers
+
+compute left_x_all left_layer property/atom x
+compute right_x_all right_layer property/atom x
+compute front_y_all front_layer property/atom y
+compute back_y_all back_layer property/atom y
+compute bottom_z_all bottom_layer property/atom z
+compute top_z_all top_layer property/atom z
+
+compute left_x left_layer reduce ave c_left_x_all
+compute right_x right_layer reduce ave c_right_x_all
+compute front_y front_layer reduce ave c_front_y_all
+compute back_y back_layer reduce ave c_back_y_all
+compute bottom_z bottom_layer reduce ave c_bottom_z_all
+compute top_z top_layer reduce ave c_top_z_all
+
+fix BASE bottom_two_layers setforce 0 0 0
+velocity bottom_two_layers set 0 0 0
+
+timestep ${time_step}
+
+reset_timestep 0
+variable planeZ equal 200
+
+compute stressPerAtomEq non_bottom stress/atom NULL
+compute p_all_eq non_bottom reduce sum c_stressPerAtomEq[1] c_stressPerAtomEq[2] c_stressPerAtomEq[3]
+
+fix 1 non_bottom nvt temp ${temperature} ${temperature} 0.01
+
+fix STRESS non_bottom ave/time 50 1 50 c_p_all_eq[3] c_thermo_press[3] file stress_eq1_${fname_end}.dat mode scalar format "%24.5E"
+
+thermo 500000
+
+# run before fixing top layers
+run 10000
+
+# fixing top layers in place
+fix INDENTER top_two_layers setforce 0 0 0
+velocity top_two_layers set 0 0 0
+
+unfix STRESS
+unfix 1
+
+uncompute stressPerAtomEq
+uncompute p_all_eq
+
+# new computations that don't include top layers 
+compute stressPerAtom others stress/atom NULL
+compute p_all others reduce sum c_stressPerAtom[1] c_stressPerAtom[2] c_stressPerAtom[3]
+
+fix 2 others nvt temp ${temperature} ${temperature} 0.01
+
+fix STRESS others ave/time 50 1 50 c_p_all[3] c_thermo_press[3] file stress_eq2_${fname_end}.dat mode scalar format "%24.5E" 
+
+# run before storing average positions
+run 2890000
+
+compute positions all property/atom x y z
+fix avg_positions all ave/atom 1 100000 3000000 c_positions[1] c_positions[2] c_positions[3]
+
+dump d_avg all custom 3000000 average_${fname_end}.dump id type f_avg_positions[1] f_avg_positions[2] f_avg_positions[3]
+dump_modify d_avg format float "%.6f"
+dump d_snap all custom 3000000 snapshot_${fname_end}.dump id type x y z
+dump_modify d_snap format float "%.6f"
+
+# run after storing average positions for 0.1 ns
+run 100000
+
+undump d_avg
+undump d_snap
+
+unfix avg_positions
+uncompute positions
+
+unfix STRESS
+
+reset_timestep 0
+
+fix 42 top_two_layers move linear 0 0 -${compression_rate}
+
+fix TD all ave/time 50 1 50  c_left_x c_right_x c_front_y c_back_y c_bottom_z c_top_z file walls_${fname_end}.dat mode scalar format "%24.5E"
+fix STRESS others ave/time 50 1 50 c_p_all[3] c_thermo_press[3] file stress_${fname_end}.dat mode scalar format "%24.5E"
+
+run $(round(200*v_end_strain/(v_compression_rate*v_time_step)))

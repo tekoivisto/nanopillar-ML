@@ -1,0 +1,8 @@
+#training_set_score validation_set_score test_set_score
+0.9674711227416992 0.9485494494438171 0.9443675875663757
+#training_set_score_augmented validation_set_score_augmented test_set_score_augmented
+0.9722454257420992 0.951538784742004 0.9517459579167367
+#n epochs
+177
+training time
+0:58:26.940964
